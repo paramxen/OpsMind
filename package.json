@@ -12,7 +12,13 @@
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "type-check": "tsc --noEmit",
-    "prepare": "npm run lint && npm run type-check"
+    "prepare": "npm run lint && npm run type-check",
+    "docker:build": "docker build -t opsmind-ai .",
+    "docker:run": "docker run -p 4000:4000 --env-file .env.local opsmind-ai",
+    "docker:compose": "docker-compose up -d",
+    "docker:compose:down": "docker-compose down",
+    "clean": "rm -rf dist node_modules",
+    "rebuild": "npm run clean && npm install && npm run build"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

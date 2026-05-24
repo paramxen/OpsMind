@@ -11,7 +11,7 @@ export declare const addIngestionJob: (data: IngestJobData) => Promise<Job<Inges
 export declare const getJobStatus: (jobId: string) => Promise<{
     jobId: string | undefined;
     state: "unknown" | import("bullmq").JobState;
-    progress: any;
+    progress: number;
     data: IngestJobData;
     attempts: number;
     failedReason: string;

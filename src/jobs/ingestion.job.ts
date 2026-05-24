@@ -29,7 +29,7 @@ const parseRedisUrl = (url: string) => {
 
 // Redis connection options
 const redisConnection: any = {
-  ...parseRedisUrl(config.REDIS_URL),
+  ...parseRedisUrl(config.REDIS_URL || 'redis://localhost:6379'),
   maxRetriesPerRequest: null,
   enableReadyCheck: false,
 };
@@ -155,7 +155,7 @@ export const getJobStatus = async (jobId: string) => {
   if (!job) return null;
   
   const state = await job.getState();
-  const progressValue = typeof job.progress() === 'number' ? job.progress() : 0;
+  const progressValue = (typeof job.progress === 'number' ? job.progress : 0) as number;
   
   return {
     jobId: job.id,

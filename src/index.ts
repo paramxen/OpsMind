@@ -1,9 +1,11 @@
 import fs from 'fs/promises';
+import http from 'http';
 import app from './app.js';
 import { getConfig } from './core/config/index.js';
 import { connectDatabase, ensureIndexes, disconnectDatabase } from './core/database/index.js';
 import { getLogger } from './core/logger/index.js';
 import { ingestionWorker, ingestionQueue, cleanupJobs } from './jobs/ingestion.job.js';
+import { initializeWebSocket } from './websocket/index.js';
 
 const logger = getLogger();
 const config = getConfig();
@@ -27,15 +29,21 @@ const startServer = async (): Promise<void> => {
       cleanupJobs().catch(err => logger.error({ err }, 'Cleanup failed'));
     }, 3600000); // Run every hour
 
+    // Create HTTP server
+    const httpServer = http.createServer(app);
+
+    // Initialize WebSocket
+    initializeWebSocket(httpServer, config.CORS_ORIGIN);
+
     // Start server
-    const server = app.listen(config.PORT, () => {
+    const server = httpServer.listen(config.PORT, () => {
       logger.info(
         {
           port: config.PORT,
           environment: config.NODE_ENV,
           timestamp: new Date().toISOString(),
         },
-        'OpsMind AI server started'
+        'OpsMind AI server started with WebSocket support'
       );
     });
 

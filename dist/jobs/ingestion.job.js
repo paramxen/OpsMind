@@ -7,22 +7,16 @@ const logger = getLogger();
 const config = getConfig();
 // Parse Redis URL safely
 const parseRedisUrl = (url) => {
-    if (!url) {
-        return {
-            host: 'localhost',
-            port: 6379,
-        };
-    }
     try {
         const parsed = new URL(url);
-        const conf = {
+        const config = {
             host: parsed.hostname || 'localhost',
             port: parsed.port ? parseInt(parsed.port, 10) : 6379,
         };
         if (parsed.password) {
-            return { ...conf, password: parsed.password };
+            return { ...config, password: parsed.password };
         }
-        return conf;
+        return config;
     }
     catch {
         return {
@@ -33,7 +27,7 @@ const parseRedisUrl = (url) => {
 };
 // Redis connection options
 const redisConnection = {
-    ...parseRedisUrl(config.REDIS_URL),
+    ...parseRedisUrl(config.REDIS_URL || 'redis://localhost:6379'),
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
 };
@@ -120,10 +114,11 @@ export const getJobStatus = async (jobId) => {
     if (!job)
         return null;
     const state = await job.getState();
+    const progressValue = (typeof job.progress === 'number' ? job.progress : 0);
     return {
         jobId: job.id,
         state,
-        progress: job._progress || 0,
+        progress: progressValue,
         data: job.data,
         attempts: job.attemptsMade,
         failedReason: job.failedReason,
