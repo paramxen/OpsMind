@@ -95,7 +95,7 @@ export const splitTextIntoChunks = (
       chunkIndex += 1;
 
       // Calculate overlap
-      let overlapSentences: string[] = [];
+      const overlapSentences: string[] = [];
       let overlapLength = 0;
       for (let i = currentSentences.length - 1; i >= 0; i--) {
         if (overlapLength >= CHUNK_OVERLAP) break;
