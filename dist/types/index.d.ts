@@ -12,7 +12,7 @@ export interface AuthRequest extends Request {
 export interface ApiResponse<T = unknown> {
     success: boolean;
     data?: T;
-    error?: {
+    error?: string | {
         message: string;
         code?: string;
     };
@@ -37,6 +37,7 @@ export interface ChunkData {
     updatedAt: Date;
 }
 export interface DocumentData {
+    _id?: string;
     documentId: string;
     userId: string;
     filename: string;

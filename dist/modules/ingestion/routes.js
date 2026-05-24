@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import multer from 'multer';
+import { ObjectId } from 'mongodb';
 import { getConfig } from '../../core/config/index.js';
 import { getLogger } from '../../core/logger/index.js';
 import { ValidationError } from '../../core/errors/index.js';
 import { requireAuth } from '../auth/middleware.js';
-import { ingestMultiplePdfs } from './ingestion.service.js';
-import { getDocumentsByUserId } from '../documents/document.service.js';
+import { getDocumentsByUserId, createDocument } from '../documents/document.service.js';
 import { getChunksByDocumentId } from './chunk.service.js';
 import { PaginationSchema } from '../../validations/index.js';
+import { addIngestionJob, getJobStatus } from '../../jobs/ingestion.job.js';
+import { generateFileHash } from '../../core/security/index.js';
 const router = Router();
 const logger = getLogger();
 const config = getConfig();
@@ -44,25 +46,51 @@ export const uploadDocuments = async (req, res, next) => {
         if (files.length > config.UPLOAD_MAX_FILES) {
             throw new ValidationError(`Maximum ${config.UPLOAD_MAX_FILES} files allowed`);
         }
-        const filePaths = files.map((f) => ({
-            path: f.path,
-            originalname: f.originalname,
-        }));
-        const results = await ingestMultiplePdfs(filePaths, req.user.userId);
-        logger.info({ userId: req.user.userId, fileCount: files.length }, 'Documents uploaded');
+        const results = [];
+        for (const file of files) {
+            try {
+                const filePath = file.path;
+                const originalname = file.originalname;
+                // Create document entry
+                const fileHash = await generateFileHash(filePath);
+                const documentId = new ObjectId().toString();
+                const document = await createDocument(documentId, req.user.userId, originalname, fileHash, 'pdf');
+                // Queue ingestion job
+                await addIngestionJob({
+                    documentId,
+                    filePath,
+                    userId: req.user.userId,
+                    fileName: originalname,
+                });
+                results.push({
+                    documentId,
+                    fileName: originalname,
+                    status: 'queued',
+                    message: 'Document queued for ingestion',
+                });
+                logger.info({ userId: req.user.userId, documentId }, 'Document queued for ingestion');
+            }
+            catch (error) {
+                results.push({
+                    fileName: file.originalname,
+                    status: 'failed',
+                    error: error instanceof Error ? error.message : 'Unknown error',
+                });
+            }
+        }
+        logger.info({ userId: req.user.userId, fileCount: files.length }, 'Documents upload queued');
         const response = {
             success: true,
             data: {
                 results,
                 summary: {
                     total: results.length,
-                    completed: results.filter((r) => r.status === 'completed').length,
-                    duplicates: results.filter((r) => r.status === 'duplicate').length,
+                    queued: results.filter((r) => r.status === 'queued').length,
                     failed: results.filter((r) => r.status === 'failed').length,
                 },
             },
         };
-        res.status(200).json(response);
+        res.status(202).json(response); // 202 Accepted
     }
     catch (error) {
         next(error);
@@ -97,7 +125,9 @@ export const getDocuments = async (req, res, next) => {
 // Get document chunks
 export const getDocumentChunks = async (req, res, next) => {
     try {
-        const { documentId } = req.params;
+        const documentId = Array.isArray(req.params.documentId)
+            ? req.params.documentId[0]
+            : (req.params.documentId || '');
         if (!documentId) {
             throw new ValidationError('Document ID is required');
         }
@@ -120,9 +150,38 @@ export const getDocumentChunks = async (req, res, next) => {
         next(error);
     }
 };
+// Get job status
+export const getIngestionJobStatus = async (req, res, next) => {
+    try {
+        const jobId = Array.isArray(req.params.jobId)
+            ? req.params.jobId[0]
+            : (req.params.jobId || '');
+        if (!jobId) {
+            throw new ValidationError('Job ID is required');
+        }
+        const status = await getJobStatus(jobId);
+        if (!status) {
+            const response = {
+                success: false,
+                error: 'Job not found',
+            };
+            res.status(404).json(response);
+            return;
+        }
+        const response = {
+            success: true,
+            data: status,
+        };
+        res.status(200).json(response);
+    }
+    catch (error) {
+        next(error);
+    }
+};
 // Setup routes
 router.post('/', requireAuth, upload.array('files', config.UPLOAD_MAX_FILES), uploadDocuments);
 router.get('/', requireAuth, getDocuments);
+router.get('/jobs/:jobId', getIngestionJobStatus);
 router.get('/:documentId/chunks', getDocumentChunks);
 export default router;
 //# sourceMappingURL=routes.js.map

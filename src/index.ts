@@ -3,6 +3,7 @@ import app from './app.js';
 import { getConfig } from './core/config/index.js';
 import { connectDatabase, ensureIndexes, disconnectDatabase } from './core/database/index.js';
 import { getLogger } from './core/logger/index.js';
+import { ingestionWorker, ingestionQueue, cleanupJobs } from './jobs/ingestion.job.js';
 
 const logger = getLogger();
 const config = getConfig();
@@ -17,6 +18,14 @@ const startServer = async (): Promise<void> => {
     await connectDatabase();
     await ensureIndexes();
     logger.info('Database connected and indexes ensured');
+
+    // Initialize job worker
+    logger.info('Initializing BullMQ worker for ingestion jobs');
+
+    // Start job cleanup interval
+    const cleanupInterval = setInterval(() => {
+      cleanupJobs().catch(err => logger.error({ err }, 'Cleanup failed'));
+    }, 3600000); // Run every hour
 
     // Start server
     const server = app.listen(config.PORT, () => {
@@ -34,8 +43,15 @@ const startServer = async (): Promise<void> => {
     const shutdown = async (signal: string): Promise<void> => {
       logger.info({ signal }, 'Shutdown signal received');
 
+      clearInterval(cleanupInterval);
+
       server.close(async () => {
         try {
+          // Close worker
+          await ingestionWorker.close();
+          await ingestionQueue.close();
+          logger.info('Job queue and worker closed');
+
           await disconnectDatabase();
           logger.info('Server shut down gracefully');
           process.exit(0);

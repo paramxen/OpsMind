@@ -64,14 +64,24 @@ export const ensureIndexes = async () => {
         await collections.documents.createIndex({ createdAt: -1 }, { background: true });
         // Chunks indexes
         await collections.chunks.createIndex({ documentId: 1 }, { background: true });
-        await collections.chunks.createIndex({ embedding: 'vector' }, {
-            vectorOptions: {
-                type: 'float32',
-                dimensions: 3072,
-                similarity: 'cosine',
-            },
-            background: true,
-        });
+        // Vector search index using aggregation
+        try {
+            const indexes = await collections.chunks.listIndexes().toArray();
+            const hasVector = indexes.some(idx => idx.name === 'embedding_vector');
+            if (!hasVector) {
+                await collections.chunks.createIndex({ embedding: 'cosmosSearch' }, {
+                    cosmosSearchOptions: {
+                        kind: 'vector-ivf',
+                        dimensions: 3072,
+                        similarity: 'COS',
+                        m: 4,
+                    },
+                });
+            }
+        }
+        catch (error) {
+            logger.warn({ err: error }, 'Failed to create vector index, this is expected on non-Atlas MongoDB');
+        }
         // Conversations indexes
         await collections.conversations.createIndex({ userId: 1 }, { background: true });
         await collections.conversations.createIndex({ createdAt: -1 }, { background: true });
