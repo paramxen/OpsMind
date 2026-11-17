@@ -5,7 +5,7 @@
 OpsMind AI is an enterprise-level **AI-powered SOP assistant** that allows users to upload PDFs and query them using a chatbot. The system uses **vector search + LLM grounding** to provide accurate, source-based answers with **zero hallucination design**.
 
 ---
-![OpsMind AI Dashboard](./OpsMind_Dashboard_Static_Under_1MB.jpg)
+![OpsMind AI Dashboard](../OpsMind_Dashboard_Static_Under_1MB.jpg)
 # 🏗️ Architecture
 
 ```
